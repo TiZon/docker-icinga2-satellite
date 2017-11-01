@@ -1,0 +1,21 @@
+version: '2'
+services:
+  icinga2:
+    image: jordan/icinga2
+    restart: on-failure:5
+    hostname: icinga2
+    environment:
+      #- ICINGA2_USER_FULLNAME=Icinga2 Docker Monitoring Instance
+    volumes:
+      - ./icinga/cache:/var/cache/icinga2
+      - ./icinga/certs:/etc/apache2/ssl:ro
+      - ./icinga/etc/icinga2:/etc/icinga2
+      - ./icinga/lib/icinga:/var/lib/icinga2
+      - ./icinga/spool:/var/spool/icinga2
+      # If you want to enable outbound e-mail, create the files
+      #  - ./ssmtp/ssmtp.conf
+      #  - ./ssmtp/revaliases
+      #  and configure to your corresponding mail setup.
+      #  See: https://github.com/jjethwa/icinga2#sending-notification-mails
+      #- ./ssmtp/revaliases:/etc/ssmtp/revaliases:ro
+      #- ./ssmtp/ssmtp.conf:/etc/ssmtp/ssmtp.conf:ro

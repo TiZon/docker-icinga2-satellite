@@ -1,0 +1,42 @@
+#!/bin/bash
+
+if [ ! "$(ls -A /etc/icinga2)" ]; then
+  echo "=> Copying fresh config-files for /etc/icinga2"
+  cp -R /etc/icinga2.dist/* /etc/icinga2/
+fi
+
+# chown directories and files that might be coming from volumes
+mkdir -p /var/log/icinga2/compat/archives
+chown -R nagios:adm /var/log/icinga2
+
+mkdir -p /var/lib/icinga2/api/zones
+mkdir -p /var/lib/icinga2/api/log
+mkdir -p /var/lib/icinga2/api/repository
+chown -R nagios:nagios /var/lib/icinga2
+chown -R nagios:nagios /var/spool/icinga2
+chown -R nagios:nagios /var/cache/icinga2
+
+mkdir -p /etc/icinga2/pki
+chown -R nagios:nagios /etc/icinga2/pki
+
+chown -R nagios:root /etc/icinga2
+
+# enable neccessary features
+icinga2 feature enable command api
+
+
+echo "DOCKER_FQDN is $DOCKER_FQDN"
+echo "ICINGA_MASTER IS $ICINGA_MASTER"
+echo "ICINGA_MASTER_PORT is $ICINGA_MASTER_PORT"
+echo "ICINGA_MASTER_TICKET is $ICINGA_MASTER_TICKET"
+
+#set up new certificate
+icinga2 pki new-cert --cn "$DOCKER_FQDN" --key "/etc/icinga2/pki/${DOCKER_FQDN}.key" --cert "/etc/icinga2/pki/${DOCKER_FQDN}.crt"
+openssl s_client -servername "$ICINGA_MASTER" -connect "${ICINGA_MASTER}:${ICINGA_MASTER_PORT}" </dev/null | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > "/etc/icinga2/pki/${ICINGA_MASTER}.crt"
+icinga2 pki save-cert --key "/etc/icinga2/pki/${DOCKER_FQDN}.key" cert "/etc/icinga2/pki/${DOCKER_FQDN}.crt" --trustedcert "/etc/icinga2/pki/${ICINGA_MASTER}.crt" --host "${ICINGA_MASTER}"
+if [ ! -f "/etc/icinga2/pki/${DOCKER_FQDN}.key" ]; then
+	icinga2 node setup --master
+fi
+icinga2 node setup --ticket "${ICINGA_MASTER_TICKET}" --cn "${DOCKER_FQDN}" --endpoint "${ICINGA_MASTER},${ICINGA_MASTER},${ICINGA_MASTER_PORT}" --zone "${DOCKER_FQDN}" --master_host "${ICINGA_MASTER}" --trustedcert "/etc/icinga2/pki/${ICINGA_MASTER}.crt" --accept-commands --accept-config
+
+chfn -f "${ICINGA2_USER_FULLNAME}" nagios
